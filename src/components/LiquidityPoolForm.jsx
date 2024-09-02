@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TextField, Button, Box, Card, Typography } from '@mui/material';
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { toast } from 'react-toastify';
 
 const server = new StellarSdk.SorobanRpc.Server('https://soroban-testnet.stellar.org');
 
@@ -39,7 +40,7 @@ function LiquidityPoolForm() {
         try {
             let response = await fetch(friendbotUrl);
             if (response.ok) {
-                alert(`Account successfully funded.`);
+                toast(`Account successfully funded.`);
                 console.log(response);
                 return true;
             } else {
@@ -48,7 +49,7 @@ function LiquidityPoolForm() {
             }
         } catch (error) {
             console.error(`Error funding account ${address}:`, error);
-            alert(`Something went wrong funding account. Check console for details.`);
+            toast(`Something went wrong funding account. Check console for details.`);
             return false;
         } finally {
             setIsFunding(false);
@@ -105,7 +106,7 @@ function LiquidityPoolForm() {
             setCreatePoolResponse(`Liquidity Pool Created. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
         } catch (error) {
             console.error('Error:', error);
-            alert('Error adding liquidity. Check console for details.');
+            toast('Error adding liquidity. Check console for details.');
         } finally {
             setAmountA('');
             setAmountB('');
@@ -143,10 +144,11 @@ function LiquidityPoolForm() {
             pathPaymentTransaction.sign(traderKeypair);
 
             const result = await server.sendTransaction(pathPaymentTransaction);
+            toast(`Swap successfully performed.`);
             setSwapResponse(`Swap Performed. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
         } catch (error) {
             console.log(`Error performing swap: ${error}`);
-            alert('Error performing swap. Check console for details.')
+            toast('Error performing swap. Check console for details.')
         } finally {
             setIsSwapping(false);
         }
@@ -175,6 +177,7 @@ function LiquidityPoolForm() {
             lpWithdrawTransaction.sign(keypair);
 
             const result = await server.sendTransaction(lpWithdrawTransaction);
+            toast(`Withdrawal Successful.}`);
             setWithdrawResponse(`Withdrawal Successful. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
         } catch (error) {
             console.log(`Error withdrawing from Liquidity Pool: ${error}`);
@@ -193,9 +196,9 @@ function LiquidityPoolForm() {
                 <Card sx={{ mt: 1, fontSize: 12, textAlign: 'center', padding: 1 }}>{keypairAddress}</Card>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 5 }}>
+            {keypair && <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 5 }}>
                 <Button variant='outlined' onClick={() => fundAccount(keypairAddress)}>{isFunding ? 'Funding...' : 'Fund Account'}</Button>
-            </div>
+            </div>}
 
             <form style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 5 }} onSubmit={addLiquidity}>
                 <Typography variant="p" component="h3" gutterBottom>
