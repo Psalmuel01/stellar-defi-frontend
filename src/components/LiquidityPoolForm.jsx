@@ -118,7 +118,7 @@ function LiquidityPoolForm() {
         e.preventDefault();
         setIsSwapping(true);
         try {
-            const traderKeypair = Keypair.random();
+            const traderKeypair = StellarSdk.Keypair.random();
             console.log("Trader Public Key:", traderKeypair.publicKey());
             await fundAccount(traderKeypair.publicKey());
             const traderAccount = await server.getAccount(traderKeypair.publicKey());
@@ -131,7 +131,7 @@ function LiquidityPoolForm() {
                     source: traderKeypair.publicKey()
                 }))
                 .addOperation(StellarSdk.Operation.pathPaymentStrictReceive({
-                    sendAsset: Asset.native(),
+                    sendAsset: StellarSdk.Asset.native(),
                     sendMax: '1000',
                     destination: traderKeypair.publicKey(),
                     destAsset: customAssetStored,
@@ -143,7 +143,7 @@ function LiquidityPoolForm() {
             pathPaymentTransaction.sign(traderKeypair);
 
             const result = await server.sendTransaction(pathPaymentTransaction);
-            console.log(`Swap Performed. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
+            setSwapResponse(`Swap Performed. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
         } catch (error) {
             console.log(`Error performing swap: ${error}`);
             alert('Error performing swap. Check console for details.')
@@ -234,7 +234,7 @@ function LiquidityPoolForm() {
                 <TextField
                     label="Max amount"
                     value={maxSwap}
-                    onChange={(e) => {setMaxSwap(e.target.value)}}
+                    onChange={(e) => { setMaxSwap(e.target.value) }}
                     required
                 />
                 <TextField
