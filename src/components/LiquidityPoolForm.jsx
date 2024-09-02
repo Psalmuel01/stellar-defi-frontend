@@ -8,12 +8,19 @@ function LiquidityPoolForm() {
     const [amountA, setAmountA] = useState('');
     const [amountB, setAmountB] = useState('');
     const [assetName, setAssetName] = useState('');
+    const [maxSwap, setMaxSwap] = useState('');
+    const [swapAmount, setSwapAmount] = useState('')
     const [keypair, setKeypair] = useState('');
     const [keypairAddress, setKeypairAddress] = useState('');
+    const [customAssetStored, setCustomAssetStored] = useState({});
     const [lpAssetStored, setLpAssetStored] = useState({});
     const [liquidityPoolIdStored, setLiquidityPoolIdStored] = useState('');
     const [isFunding, setIsFunding] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
+    const [isSwapping, setIsSwapping] = useState(false);
+    const [isWithdrawing, setIsWithdrawing] = useState(false);
     const [createPoolResponse, setCreatePoolResponse] = useState('');
+    const [swapResponse, setSwapResponse] = useState('');
     const [withdrawResponse, setWithdrawResponse] = useState('');
     const [withdrawAmount, setWithdrawAmount] = useState('');
 
@@ -50,12 +57,14 @@ function LiquidityPoolForm() {
 
     const addLiquidity = async (e) => {
         e.preventDefault();
+        setIsAdding(true);
         try {
             const defiAccount =
                 await server.getAccount(keypairAddress);
             // create custom asset from input
             const customAsset = new StellarSdk.Asset(assetName,
                 keypairAddress);
+            setCustomAssetStored(customAsset);
             // created a liquidity pool asset with the native xlm and my custom asset
             const lpAsset = new StellarSdk.LiquidityPoolAsset(
                 StellarSdk.Asset.native(),
@@ -93,7 +102,6 @@ function LiquidityPoolForm() {
                 .build();
             addTransaction.sign(keypair);
             const result = await server.sendTransaction(addTransaction);
-            console.log('Transaction successful:', result);
             setCreatePoolResponse(`Liquidity Pool Created. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
         } catch (error) {
             console.error('Error:', error);
@@ -102,35 +110,77 @@ function LiquidityPoolForm() {
             setAmountA('');
             setAmountB('');
             setAssetName('');
+            setIsAdding(false);
         }
     };
 
+    const swap = async (e) => {
+        e.preventDefault();
+        setIsSwapping(true);
+        try {
+            const traderKeypair = Keypair.random();
+            console.log("Trader Public Key:", traderKeypair.publicKey());
+            await fundAccount(traderKeypair.publicKey());
+            const traderAccount = await server.getAccount(traderKeypair.publicKey());
+            const pathPaymentTransaction = new StellarSdk.TransactionBuilder(traderAccount, {
+                fee: StellarSdk.BASE_FEE,
+                networkPassphrase: StellarSdk.Networks.TESTNET
+            })
+                .addOperation(StellarSdk.Operation.changeTrust({
+                    asset: customAssetStored,
+                    source: traderKeypair.publicKey()
+                }))
+                .addOperation(StellarSdk.Operation.pathPaymentStrictReceive({
+                    sendAsset: Asset.native(),
+                    sendMax: '1000',
+                    destination: traderKeypair.publicKey(),
+                    destAsset: customAssetStored,
+                    destAmount: '50',
+                    source: traderKeypair.publicKey()
+                }))
+                .setTimeout(30)
+                .build();
+            pathPaymentTransaction.sign(traderKeypair);
+
+            const result = await server.sendTransaction(pathPaymentTransaction);
+            console.log(`Swap Performed. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
+        } catch (error) {
+            console.log(`Error performing swap: ${error}`);
+            alert('Error performing swap. Check console for details.')
+        } finally {
+            setIsSwapping(false);
+        }
+    }
     const withdraw = async (e) => {
         e.preventDefault();
-        const defiAccount =
-            await server.getAccount(keypairAddress);
-        const lpWithdrawTransaction = new StellarSdk.TransactionBuilder(defiAccount, {
-            fee: StellarSdk.BASE_FEE,
-            networkPassphrase: StellarSdk.Networks.TESTNET
-        })
-            .addOperation(StellarSdk.Operation.liquidityPoolWithdraw({
-                liquidityPoolId: StellarSdk.getLiquidityPoolId(
-                    'constant_product',
-                    lpAssetStored
-                ).toString('hex'),
-                amount: withdrawAmount,
-                minAmountA: '0',
-                minAmountB: '0'
-            }))
-            .setTimeout(30)
-            .build();
-        lpWithdrawTransaction.sign(keypair);
+        setIsWithdrawing(true);
         try {
+            const defiAccount =
+                await server.getAccount(keypairAddress);
+            const lpWithdrawTransaction = new StellarSdk.TransactionBuilder(defiAccount, {
+                fee: StellarSdk.BASE_FEE,
+                networkPassphrase: StellarSdk.Networks.TESTNET
+            })
+                .addOperation(StellarSdk.Operation.liquidityPoolWithdraw({
+                    liquidityPoolId: StellarSdk.getLiquidityPoolId(
+                        'constant_product',
+                        lpAssetStored
+                    ).toString('hex'),
+                    amount: withdrawAmount,
+                    minAmountA: '0',
+                    minAmountB: '0'
+                }))
+                .setTimeout(30)
+                .build();
+            lpWithdrawTransaction.sign(keypair);
+
             const result = await server.sendTransaction(lpWithdrawTransaction);
-            console.log('Transaction successful:', result);
             setWithdrawResponse(`Withdrawal Successful. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
         } catch (error) {
             console.log(`Error withdrawing from Liquidity Pool: ${error}`);
+        } finally {
+            setWithdrawAmount('');
+            setIsWithdrawing(false);
         }
     }
 
@@ -140,7 +190,7 @@ function LiquidityPoolForm() {
         }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 10 }}>
                 <Button variant='outlined' onClick={generateKeypair}>Generate Keypair</Button>
-                <Card sx={{ mt: 2, fontSize: 11, textAlign: 'center' }}>{keypairAddress}</Card>
+                <Card sx={{ mt: 1, fontSize: 12, textAlign: 'center', padding: 1 }}>{keypairAddress}</Card>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 5 }}>
@@ -172,9 +222,32 @@ function LiquidityPoolForm() {
                     required
                 />
                 <Button type="submit" variant="contained">
-                    Add Liquidity
+                    {isAdding ? 'Adding...' : 'Add Liquidity'}
                 </Button>
-                <Card sx={{ mt: 2, fontSize: 14, textAlign: 'center', overflowX: 'scroll' }}>{createPoolResponse}</Card>
+                <Card sx={{ mt: 1, fontSize: 14, textAlign: 'center', overflowX: 'scroll', padding: 1 }}>{createPoolResponse}</Card>
+            </form>
+
+            <form style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 5 }} onSubmit={swap}>
+                <Typography variant="p" component="h3" gutterBottom>
+                    Swap Token
+                </Typography>
+                <TextField
+                    label="Max amount"
+                    value={maxSwap}
+                    onChange={(e) => {setMaxSwap(e.target.value)}}
+                    required
+                />
+                <TextField
+                    label="Destination Amount"
+                    type="number"
+                    value={swapAmount}
+                    onChange={(e) => setSwapAmount(e.target.value)}
+                    required
+                />
+                <Button type="submit" variant="contained">
+                    {isSwapping ? 'Swapping...' : 'Swap Assets'}
+                </Button>
+                <Card sx={{ mt: 1, fontSize: 14, textAlign: 'center', overflowX: 'scroll', padding: 1 }}>{swapResponse}</Card>
             </form>
 
             <form style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 5 }} onSubmit={withdraw}>
@@ -194,9 +267,9 @@ function LiquidityPoolForm() {
                     required
                 />
                 <Button type="submit" variant="contained">
-                    Withdraw Liquidity
+                    {isWithdrawing ? 'Withdrawing...' : 'Withdraw Liquidity'}
                 </Button>
-                <Card sx={{ mt: 2, fontSize: 14, textAlign: 'center', overflowX: 'scroll' }}>{withdrawResponse}</Card>
+                <Card sx={{ mt: 1, fontSize: 14, textAlign: 'center', overflowX: 'scroll', padding: 1 }}>{withdrawResponse}</Card>
             </form>
         </Box>
     );
