@@ -10,10 +10,11 @@ function LiquidityPoolForm() {
     const [assetName, setAssetName] = useState('');
     const [keypair, setKeypair] = useState('');
     const [keypairAddress, setKeypairAddress] = useState('');
+    const [lpAssetStored, setLpAssetStored] = useState({});
+    const [liquidityPoolIdStored, setLiquidityPoolIdStored] = useState('');
     const [isFunding, setIsFunding] = useState('');
     const [createPoolResponse, setCreatePoolResponse] = useState('');
     const [withdrawResponse, setWithdrawResponse] = useState('');
-    const [liquidityPoolId, setLiquidityPoolId] = useState('');
     const [withdrawAmount, setWithdrawAmount] = useState('');
 
     const generateKeypair = () => {
@@ -50,8 +51,8 @@ function LiquidityPoolForm() {
     const addLiquidity = async (e) => {
         e.preventDefault();
         try {
-            const defiAccount = await
-                server.getAccount(keypairAddress);
+            const defiAccount =
+                await server.getAccount(keypairAddress);
             // create custom asset from input
             const customAsset = new StellarSdk.Asset(assetName,
                 keypairAddress);
@@ -61,11 +62,14 @@ function LiquidityPoolForm() {
                 customAsset,
                 StellarSdk.LiquidityPoolFeeV18
             );
-            setLiquidityPoolId(StellarSdk.getLiquidityPoolId(
+            setLpAssetStored(lpAsset);
+            const liquidityPoolId = StellarSdk.getLiquidityPoolId(
                 'constant_product',
                 lpAsset
-            ).toString('hex'));
-            // console.log(lpAsset.getLiquidityPoolParameters());
+            ).toString('hex');
+            setLiquidityPoolIdStored(liquidityPoolId);
+            console.log("lpasset: ", lpAsset);
+            console.log(lpAsset.getLiquidityPoolParameters());
             const addTransaction = new
                 StellarSdk.TransactionBuilder(defiAccount, {
                     fee: StellarSdk.BASE_FEE,
@@ -103,14 +107,16 @@ function LiquidityPoolForm() {
 
     const withdraw = async (e) => {
         e.preventDefault();
-        const lpWithdrawTransaction = new TransactionBuilder(defiAccount, {
-            fee: BASE_FEE,
-            networkPassphrase: Networks.TESTNET
+        const defiAccount =
+            await server.getAccount(keypairAddress);
+        const lpWithdrawTransaction = new StellarSdk.TransactionBuilder(defiAccount, {
+            fee: StellarSdk.BASE_FEE,
+            networkPassphrase: StellarSdk.Networks.TESTNET
         })
-            .addOperation(Operation.liquidityPoolWithdraw({
+            .addOperation(StellarSdk.Operation.liquidityPoolWithdraw({
                 liquidityPoolId: StellarSdk.getLiquidityPoolId(
                     'constant_product',
-                    lpAsset
+                    lpAssetStored
                 ).toString('hex'),
                 amount: withdrawAmount,
                 minAmountA: '0',
@@ -121,6 +127,7 @@ function LiquidityPoolForm() {
         lpWithdrawTransaction.sign(keypair);
         try {
             const result = await server.sendTransaction(lpWithdrawTransaction);
+            console.log('Transaction successful:', result);
             setWithdrawResponse(`Withdrawal Successful. Transaction URL: https://stellar.expert/explorer/testnet/tx/${result.hash}`);
         } catch (error) {
             console.log(`Error withdrawing from Liquidity Pool: ${error}`);
@@ -167,7 +174,7 @@ function LiquidityPoolForm() {
                 <Button type="submit" variant="contained">
                     Add Liquidity
                 </Button>
-                <Card sx={{ mt: 2, fontSize: 14, textAlign: 'center' }}>{createPoolResponse}</Card>
+                <Card sx={{ mt: 2, fontSize: 14, textAlign: 'center', overflowX: 'scroll' }}>{createPoolResponse}</Card>
             </form>
 
             <form style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 5 }} onSubmit={withdraw}>
@@ -176,7 +183,7 @@ function LiquidityPoolForm() {
                 </Typography>
                 <TextField
                     label="Liquidity Pool Id"
-                    value={liquidityPoolId}
+                    value={liquidityPoolIdStored}
                     required
                 />
                 <TextField
@@ -189,6 +196,7 @@ function LiquidityPoolForm() {
                 <Button type="submit" variant="contained">
                     Withdraw Liquidity
                 </Button>
+                <Card sx={{ mt: 2, fontSize: 14, textAlign: 'center', overflowX: 'scroll' }}>{withdrawResponse}</Card>
             </form>
         </Box>
     );
